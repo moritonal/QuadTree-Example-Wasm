@@ -1,20 +1,14 @@
 use nalgebra::Vector3;
 
-use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::rc::Rc;
 use std::{cell::RefCell, f64};
-use std::{clone, string};
 use wasm_bindgen::prelude::*;
-use web_sys::{console, window, Element, HtmlElement};
+use web_sys::{console, Element};
 
-
-use serde_json::Result as JsonResult;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use serde_wasm_bindgen::from_value;
-use serde_wasm_bindgen::to_value;
 
 mod boid;
 mod quadtree;
@@ -82,6 +76,7 @@ pub struct World {
     lookup_alpha: f64,
     lookup_radius: f64,
     boid_size: f64,
+    lookup_method: String
 }
 
 static mut GLOBAL_DAMPNING: f64 = 0.0;
@@ -147,7 +142,8 @@ impl World {
 
             lookup_alpha: 0.0,
             lookup_radius: 0.0,
-            boid_size: 0.0
+            boid_size: 0.0,
+            lookup_method: String::from("quadtree")
         }
     }
 
@@ -262,6 +258,11 @@ impl World {
 
                     self.boid_size = value;
                 }
+                else if event.event_type == "set_lookup_method" {
+                    let value: String = event.data.parse().unwrap();
+
+                    self.lookup_method = value;
+                }
             },
             Err(e) => {
                 console::log_1(&format!("Error: {:?}", e).into());
@@ -342,12 +343,58 @@ impl Renderable for World {
         for boid in boids {
             let our_pos = boid.borrow().pos;
 
+            // use world.lookup_method to use either "quadtree" or "brute_force"
+
+            // let nearby_boids: Vec<i32> = if self.lookup_method == "quadtree" {
+            //     self.quad_tree.query_range(AABB::new(
+            //         Vector3::new(our_pos.x - boid_to_boid_distance_half, our_pos.y - boid_to_boid_distance_half, 0.0),
+            //         Vector3::new(our_pos.x + boid_to_boid_distance_half, our_pos.y + boid_to_boid_distance_half, 0.0),
+            //     )).iter().filter(|x| {
+            //         let other_boid_pos = x.borrow().pos;
+            //         let distance = ((our_pos.x - other_boid_pos.x).powi(2) + (our_pos.y - other_boid_pos.y).powi(2)).sqrt();
+
+            //         return distance < boid_to_boid_distance;
+            //     }).cloned().collect();
+            // } else {
+            //     self.boids.iter().filter(|x| {
+            //         let other_boid_pos = x.borrow().pos;
+            //         let distance = ((our_pos.x - other_boid_pos.x).powi(2) + (our_pos.y - other_boid_pos.y).powi(2)).sqrt();
+
+            //         return distance < boid_to_boid_distance;
+            //     }).cloned().collect();
+            // };
+
+
+            //sum_compare_against += nearby_boids.len();
+            let nearby_boids: Vec<_> = if self.lookup_method == "quadtree" {
+                self.quad_tree.query_range(AABB::new(
+                    Vector3::new(our_pos.x - boid_to_boid_distance, our_pos.y - boid_to_boid_distance, 0.0),
+                    Vector3::new(our_pos.x + boid_to_boid_distance, our_pos.y + boid_to_boid_distance, 0.0),
+                )).iter().filter(|x| {
+                    let other_boid_pos = x.borrow().pos;
+                    let distance = ((our_pos.x - other_boid_pos.x).powi(2) + (our_pos.y - other_boid_pos.y).powi(2)).sqrt();
+
+                    sum_compare_against += 1;
+
+                    distance < boid_to_boid_distance
+                }).cloned().collect()
+            } else {
+                self.boids.iter().filter(|x| {
+                    let other_boid_pos = x.borrow().pos;
+                    let distance = ((our_pos.x - other_boid_pos.x).powi(2) + (our_pos.y - other_boid_pos.y).powi(2)).sqrt();
+
+                    sum_compare_against += 1;
+
+                    distance < boid_to_boid_distance
+                }).cloned().collect()
+            };
+
 
             //we need to fetch the nearby boids
-            let nearby_boids = self.quad_tree.query_range(AABB::new(
-                Vector3::new(our_pos.x - boid_to_boid_distance_half, our_pos.y - boid_to_boid_distance_half, 0.0),
-                Vector3::new(our_pos.x + boid_to_boid_distance_half, our_pos.y + boid_to_boid_distance_half, 0.0),
-            ));
+            // let nearby_boids = self.quad_tree.query_range(AABB::new(
+            //     Vector3::new(our_pos.x - boid_to_boid_distance_half, our_pos.y - boid_to_boid_distance_half, 0.0),
+            //     Vector3::new(our_pos.x + boid_to_boid_distance_half, our_pos.y + boid_to_boid_distance_half, 0.0),
+            // ));
 
             // let mut nearby_boids: Vec<Rc<RefCell<Boid>>> = Vec::new();
 
@@ -364,7 +411,7 @@ impl Renderable for World {
             //     }
             // }
 
-            sum_compare_against += nearby_boids.len();
+
 
             for other_boids in &nearby_boids {
 

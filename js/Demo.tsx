@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { sizeFormatter } from "human-readable"
 
-import { Card, CardContent, Typography, Container, Stack, Slider, Grid } from "@mui/material";
+import { Card, CardContent, Typography, Container, Stack, Slider, Grid, ToggleButtonGroup, ToggleButton } from "@mui/material";
 import { Box } from "@mui/system";
 
 import '@fontsource/roboto/300.css';
@@ -80,18 +80,21 @@ const Demo: React.FC = () => {
         unselected_quads: 0.05,
         lookup_radius: 100,
         lookup_alpha: 0.5,
-        boid_size: 5.0
+        boid_size: 5.0,
+        lookup_method: "quadtree"
     });
 
     const handleWasmValuesUpdate = (key: string, value: number | number[]) => {
         setWasmValues({ ...wasmValues, [key]: value });
 
-        window.dispatchEvent(new CustomEvent('wasmevent', {
-            detail: {
-                event_type: 'set_' + key,
-                data: value.toString()
-            }
-        }));
+        if (value != null) {
+            window.dispatchEvent(new CustomEvent('wasmevent', {
+                detail: {
+                    event_type: 'set_' + key,
+                    data: value.toString()
+                }
+            }));
+        }
     }
 
     useEffect(() => {
@@ -130,6 +133,24 @@ const Demo: React.FC = () => {
                     <Grid item xs={8}>
                         <Slider value={wasmValues.lookup_radius} onChange={(evt, val) => handleWasmValuesUpdate("lookup_radius", val)} min={10} max={1000} step={1.0} valueLabelDisplay="auto" />
                     </Grid>
+
+                    <Grid item xs={4}>
+                        <Typography>Lookup method</Typography>
+                    </Grid>
+                    <Grid item xs={8}>
+                        <ToggleButtonGroup
+                            color="primary"
+                            value={wasmValues.lookup_method}
+                            exclusive
+                            onChange={(evt, val) => handleWasmValuesUpdate("lookup_method", val)}
+                            aria-label="Lookup method"
+                        >
+                            <ToggleButton value="quadtree">Quadtree</ToggleButton>
+                            <ToggleButton value="brute_force">Brute-force</ToggleButton>
+                        </ToggleButtonGroup>
+                    </Grid>
+
+
 
                     <Grid item xs={4}>
                         <Typography>Average number of boid sqrt function's per frame</Typography>
